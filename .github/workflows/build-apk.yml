@@ -25,20 +25,24 @@ jobs:
         with:
           channel: "stable"
 
-      - name: Enable Android Platform Support
-        run: flutter config --enable-android
+      - name: Recreate Android Project Wrapper
+        run: |
+          rm -rf android
+          flutter create . --platforms=android --org=com.flashshare
 
       - name: Get Dependencies
         run: flutter pub get
 
-      - name: Make gradlew executable
-        run: chmod +x android/gradlew
+      - name: Add Camera Permissions to Manifest
+        run: |
+          sed -i '/<application/i \    <uses-permission android:name="android.permission.CAMERA"/>' android/app/src/main/AndroidManifest.xml
+          sed -i '/<application/i \    <uses-feature android:name="android.hardware.camera"/>' android/app/src/main/AndroidManifest.xml
 
-      - name: Build APK
+      - name: Build Release APK
         run: flutter build apk --release --no-tree-shake-icons
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: flashshare-release-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: build/app/outputs/flutter-apk/*.apk
