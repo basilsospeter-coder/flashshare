@@ -38,18 +38,13 @@ jobs:
       - name: Get Dependencies
         run: flutter pub get
 
-      - name: Update Android Compile SDK to 36
-        run: |
-          sed -i 's/compileSdk = flutter.compileSdkVersion/compileSdk = 36/g' android/app/build.gradle
-          sed -i 's/targetSdk = flutter.targetSdkVersion/targetSdk = 34/g' android/app/build.gradle
-
       - name: Add Camera Permissions to Manifest
         run: |
           sed -i '/<application/i \    <uses-permission android:name="android.permission.CAMERA"/>' android/app/src/main/AndroidManifest.xml
           sed -i '/<application/i \    <uses-feature android:name="android.hardware.camera"/>' android/app/src/main/AndroidManifest.xml
 
       - name: Build Release APK
-        run: flutter build apk --release --no-tree-shake-icons
+        run: flutter build apk --release --no-tree-shake-icons --android-project-args="compileSdkVersion=36"
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
