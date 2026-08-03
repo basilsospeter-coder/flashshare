@@ -38,13 +38,18 @@ jobs:
       - name: Get Dependencies
         run: flutter pub get
 
+      - name: Force Compile SDK 36 in Gradle Files
+        run: |
+          find android/ -name "build.gradle*" -exec sed -i 's/compileSdk = .*/compileSdk = 36/g' {} +
+          find android/ -name "build.gradle*" -exec sed -i 's/compileSdkVersion .*/compileSdkVersion 36/g' {} +
+
       - name: Add Camera Permissions to Manifest
         run: |
           sed -i '/<application/i \    <uses-permission android:name="android.permission.CAMERA"/>' android/app/src/main/AndroidManifest.xml
           sed -i '/<application/i \    <uses-feature android:name="android.hardware.camera"/>' android/app/src/main/AndroidManifest.xml
 
       - name: Build Release APK
-        run: flutter build apk --release --no-tree-shake-icons --android-project-args="compileSdkVersion=36"
+        run: flutter build apk --release --no-tree-shake-icons
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
