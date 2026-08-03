@@ -1,135 +1,68 @@
-import 'dart:async';
-import 'dart:convert';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
-class SenderScreen extends StatefulWidget {
-  final Uint8List fileBytes;
-  final String fileName;
+class SendScreen extends StatefulWidget {
+  final String qrData;
 
-  const SenderScreen({
-    Key? key,
-    required this.fileBytes,
-    required this.fileName,
-  }) : super(key: key);
+  const SendScreen({
+    super.key,
+    this.qrData = 'flash_sender_connect_payload',
+  });
 
-  @override
-  State<SenderScreen> createState() => _SenderScreenState();
-}
-
-class _SenderScreenState extends State<SenderScreen> {
-  List<String> _qrFrames = [];
-  int _currentFrameIndex = 0;
-  Timer? _transmissionTimer;
-
-  // OPTIMAL OPTICAL PARAMS
-  // 180 bytes chunk size keeps QR modules large and easy to scan
-  static const int _chunkSize = 180;
-  // 220ms (~4.5 FPS) gives receiver cameras enough shutter time per frame
-  static const int _frameIntervalMs = 220;
-
-  @override
-  void initState() {
-    super.initState();
-    _prepareFrames();
-    _startTransmission();
-  }
-
-  void _prepareFrames() {
-    final String base64Data = base64Encode(widget.fileBytes);
-    final List<String> rawChunks = [];
-
-    for (int i = 0; i < base64Data.length; i += _chunkSize) {
-      int end = (i + _chunkSize < base64Data.length)
-          ? i + _chunkSize
-          : base64Data.length;
-      rawChunks.add(base64Data.substring(i, end));
-    }
-
-    final int totalFrames = rawChunks.length;
-
-    // Format: frameIndex/totalFrames|payload
-    _qrFrames = List.generate(totalFrames, (index) {
-      return '$index/$totalFrames|${rawChunks[index]}';
-    });
-  }
-
-  void _startTransmission() {
-    _transmissionTimer?.cancel();
-    _transmissionTimer = Timer.periodic(
-      const Duration(milliseconds: _frameIntervalMs),
-      (timer) {
-        if (_qrFrames.isNotEmpty) {
-          setState(() {
-            _currentFrameIndex = (_currentFrameIndex + 1) % _qrFrames.length;
-          });
-        }
-      },
+  @style
+  static Route<void> route({String qrData = 'flash_sender_connect_payload'}) {
+    return MaterialPageRoute<void>(
+      builder: (_) => SendScreen(qrData: qrData),
     );
   }
 
   @override
-  void dispose() {
-    _transmissionTimer?.cancel();
-    super.dispose();
-  }
+  State<SendScreen> createState() => _SendScreenState();
+}
 
+class _SendScreenState extends State<SendScreen> {
   @override
   Widget build(BuildContext context) {
-    if (_qrFrames.isEmpty) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
-
-    final double progress = (_currentFrameIndex + 1) / _qrFrames.length;
-
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Transmitting File'),
-        centerTitle: true,
+        title: const Text('Send Files'),
       ),
-      body: SafeArea(
+      body: Padding(
+        padding: const EdgeInsets.all(24.0),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Text(
-              widget.fileName,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            const Text(
+              'Scan to Connect',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+              ),
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Frame ${_currentFrameIndex + 1} of ${_qrFrames.length}',
-              style: const TextStyle(color: Colors.grey),
+            const SizedBox(height: 12),
+            const Text(
+              'Have the receiver scan this QR code to establish connection.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 32),
             Center(
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: QrImageView(
-                  data: _qrFrames[_currentFrameIndex],
-                  version: QrVersions.auto,
-                  size: 280.0,
-                  // Low error level ensures larger, bolder QR blocks for camera tracking
-                  errorCorrectionLevel: QrErrorCorrectLevel.L,
-                ),
+              child: QrImageView(
+                data: widget.qrData,
+                version: QrVersions.auto,
+                size: 260.0,
+                errorCorrectionLevel: QrErrorCorrectLevel.M,
+                backgroundColor: Colors.white,
               ),
             ),
             const SizedBox(height: 32),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32.0),
-              child: Column(
-                children: [
-                  LinearProgressIndicator(value: progress),
-                  const SizedBox(height: 8),
-                  Text('${(progress * 100).toStringAsFixed(0)}% Looping'),
-                ],
-              ),
+            ElevatedButton.icon(
+              onPressed: () {
+                // Logic to pick files or trigger transfer
+              },
+              icon: const Icon(Icons.attach_file),
+              label: const Text('Select Files to Send'),
             ),
           ],
         ),

@@ -1,79 +1,173 @@
 import 'package:flutter/material.dart';
-import 'package:camera/camera.dart';
 import 'send_screen.dart';
 import 'receive_screen.dart';
 
-class HomeScreen extends StatelessWidget {
-  final List<CameraDescription> cameras;
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
 
-  const HomeScreen({super.key, required this.cameras});
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  void _navigateToSendScreen() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const SendScreen(),
+      ),
+    );
+  }
+
+  void _navigateToReceiveScreen() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const ReceiveScreen(),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('FlashShare'),
+        title: const Text('Flash Sender'),
         centerTitle: true,
+        elevation: 0,
       ),
-      body: Center(
+      body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(24.0),
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // Header Icon and Title
               const Icon(
-                Icons.edgesensor_high_rounded,
+                Icons.flash_on_rounded,
                 size: 80,
-                color: Colors.deepPurpleAccent,
+                color: Colors.deepPurple,
               ),
-              const SizedBox(height: 24),
-              const Text(
-                'Visible Light Transfer',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              const SizedBox(height: 16),
+              Text(
+                'Fast Local Sharing',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
               ),
               const SizedBox(height: 8),
-              const Text(
-                'Offline optical file sharing via screen & camera.',
+              Text(
+                'Send or receive files effortlessly using local peer-to-peer connection.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey),
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Colors.grey[600],
+                    ),
               ),
               const SizedBox(height: 48),
-              SizedBox(
-                width: double.infinity,
-                height: 54,
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const SendScreen()),
-                    );
-                  },
-                  icon: const Icon(Icons.upload_file),
-                  label: const Text('SEND MEDIA', style: TextStyle(fontSize: 16)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.deepPurple,
-                    foregroundColor: Colors.white,
+
+              // Send Action Card
+              Card(
+                elevation: 2,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: InkWell(
+                  onTap: _navigateToSendScreen,
+                  borderRadius: BorderRadius.circular(16),
+                  child: const Padding(
+                    padding: EdgeInsets.all(20.0),
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 28,
+                          backgroundColor: Colors.deepPurple,
+                          child: Icon(
+                            Icons.send_rounded,
+                            color: Colors.white,
+                            size: 28,
+                          ),
+                        ),
+                        SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Send',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              SizedBox(height: 4),
+                              Text(
+                                'Generate QR code & share files',
+                                style: TextStyle(
+                                  color: Colors.grey,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Icon(Icons.arrow_forward_ios_rounded, size: 18),
+                      ],
+                    ),
                   ),
                 ),
               ),
               const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                height: 54,
-                child: OutlinedButton.icon(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => ReceiveScreen(cameras: cameras),
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.qr_code_scanner),
-                  label: const Text('RECEIVE MEDIA', style: TextStyle(fontSize: 16)),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.deepPurpleAccent,
-                    side: const BorderSide(color: Colors.deepPurpleAccent),
+
+              // Receive Action Card
+              Card(
+                elevation: 2,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: InkWell(
+                  onTap: _navigateToReceiveScreen,
+                  borderRadius: BorderRadius.circular(16),
+                  child: const Padding(
+                    padding: EdgeInsets.all(20.0),
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 28,
+                          backgroundColor: Colors.teal,
+                          child: Icon(
+                            Icons.qr_code_scanner_rounded,
+                            color: Colors.white,
+                            size: 28,
+                          ),
+                        ),
+                        SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Receive',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              SizedBox(height: 4),
+                              Text(
+                                'Scan sender\'s QR code to connect',
+                                style: TextStyle(
+                                  color: Colors.grey,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Icon(Icons.arrow_forward_ios_rounded, size: 18),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -83,4 +177,5 @@ class HomeScreen extends StatelessWidget {
       ),
     );
   }
+}
 }

@@ -1,6 +1,7 @@
-name: flashshare
-description: "Visible Light Communication (VLC) file sharing application."
+name: flash_sender
+description: "A fast local file sharing app."
 publish_to: "none"
+
 version: 1.0.0+1
 
 environment:
@@ -10,12 +11,15 @@ dependencies:
   flutter:
     sdk: flutter
 
-  # Core dependencies for UI, camera, and file handling
   camera: ^0.10.5+9
   permission_handler: ^11.3.1
   file_picker: ^8.0.0
   path_provider: ^2.1.2
   cupertino_icons: ^1.0.6
+
+  # Dependencies for QR code generation and scanning
+  qr_flutter: ^4.1.0
+  mobile_scanner: ^5.0.0
 
 dev_dependencies:
   flutter_test:
@@ -24,7 +28,3 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-
-  assets:
-    - assets/icons/
-    - assets/images/
