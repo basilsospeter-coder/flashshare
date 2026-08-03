@@ -1,191 +1,137 @@
-import 'dart:io';
+import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:file_picker/file_picker.dart';
-import '../../core/utils/file_chunker.dart';
-import '../../engine/encoder/strobe_renderer.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
-class SendScreen extends StatefulWidget {
-  const SendScreen({super.key});
+class SenderScreen extends StatefulWidget {
+  final Uint8List fileBytes;
+  final String fileName;
+
+  const SenderScreen({
+    Key? key,
+    required this.fileBytes,
+    required this.fileName,
+  }) : super(key: key);
 
   @override
-  State<SendScreen> createState() => _SendScreenState();
+  State<SenderScreen> createState() => _SenderScreenState();
 }
 
-class _SendScreenState extends State<SendScreen> {
-  File? _selectedFile;
-  List<Uint8List> _encodedChunks = [];
-  bool _isProcessing = false;
-  int _targetFps = 30;
+class _SenderScreenState extends State<SenderScreen> {
+  List<String> _qrFrames = [];
+  int _currentFrameIndex = 0;
+  Timer? _transmissionTimer;
 
-  Future<void> _pickAndProcessFile() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.any,
-      allowMultiple: false,
-    );
+  // OPTIMAL OPTICAL PARAMS
+  // 180 bytes chunk size keeps QR modules large and easy to scan
+  static const int _chunkSize = 180;
+  // 220ms (~4.5 FPS) gives receiver cameras enough shutter time per frame
+  static const int _frameIntervalMs = 220;
 
-    if (result == null || result.files.single.path == null) return;
+  @override
+  void initState() {
+    super.initState();
+    _prepareFrames();
+    _startTransmission();
+  }
 
-    setState(() {
-      _isProcessing = true;
-      _selectedFile = File(result.files.single.path!);
-      _encodedChunks = [];
-    });
+  void _prepareFrames() {
+    final String base64Data = base64Encode(widget.fileBytes);
+    final List<String> rawChunks = [];
 
-    try {
-      // Slice file into 256-byte chunks with headers and CRC32 checksums
-      final chunks = await FileChunker.sliceFile(_selectedFile!, chunkSize: 256);
-      setState(() {
-        _encodedChunks = chunks;
-        _isProcessing = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _isProcessing = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error processing file: $e")),
-      );
+    for (int i = 0; i < base64Data.length; i += _chunkSize) {
+      int end = (i + _chunkSize < base64Data.length)
+          ? i + _chunkSize
+          : base64Data.length;
+      rawChunks.add(base64Data.substring(i, end));
     }
+
+    final int totalFrames = rawChunks.length;
+
+    // Format: frameIndex/totalFrames|payload
+    _qrFrames = List.generate(totalFrames, (index) {
+      return '$index/$totalFrames|${rawChunks[index]}';
+    });
+  }
+
+  void _startTransmission() {
+    _transmissionTimer?.cancel();
+    _transmissionTimer = Timer.periodic(
+      const Duration(milliseconds: _frameIntervalMs),
+      (timer) {
+        if (_qrFrames.isNotEmpty) {
+          setState(() {
+            _currentFrameIndex = (_currentFrameIndex + 1) % _qrFrames.length;
+          });
+        }
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _transmissionTimer?.cancel();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_qrFrames.isEmpty) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    final double progress = (_currentFrameIndex + 1) / _qrFrames.length;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Send Media'),
-        actions: [
-          if (_selectedFile != null)
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              onPressed: _pickAndProcessFile,
-              tooltip: 'Select Different File',
-            ),
-        ],
+        title: const Text('Transmitting File'),
+        centerTitle: true,
       ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            children: [
-              if (_selectedFile == null && !_isProcessing) ...[
-                Expanded(
-                  child: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.file_upload_outlined,
-                          size: 90,
-                          color: Colors.deepPurpleAccent,
-                        ),
-                        const SizedBox(height: 20),
-                        const Text(
-                          "Select a file to transmit",
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-                        ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          "Supports photos, videos, audio, APKs, or documents",
-                          style: TextStyle(color: Colors.grey),
-                        ),
-                        const SizedBox(height: 32),
-                        ElevatedButton.icon(
-                          onPressed: _pickAndProcessFile,
-                          icon: const Icon(Icons.folder_open),
-                          label: const Text("CHOOSE FILE"),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.deepPurple,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 32,
-                              vertical: 16,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              widget.fileName,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Frame ${_currentFrameIndex + 1} of ${_qrFrames.length}',
+              style: const TextStyle(color: Colors.grey),
+            ),
+            const SizedBox(height: 24),
+            Center(
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
                 ),
-              ] else if (_isProcessing) ...[
-                const Expanded(
-                  child: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        CircularProgressIndicator(color: Colors.deepPurpleAccent),
-                        SizedBox(height: 20),
-                        Text("Compressing and generating bit matrices..."),
-                      ],
-                    ),
-                  ),
+                child: QrImageView(
+                  data: _qrFrames[_currentFrameIndex],
+                  version: QrVersions.auto,
+                  size: 280.0,
+                  // Low error level ensures larger, bolder QR blocks for camera tracking
+                  errorCorrectionLevel: QrErrorCorrectLevel.L,
                 ),
-              ] else ...[
-                // Display File Meta Details
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.white10,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.insert_drive_file, color: Colors.deepPurpleAccent),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              _selectedFile!.path.split('/').last,
-                              style: const TextStyle(fontWeight: FontWeight.bold),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            Text(
-                              "${(_selectedFile!.lengthSync() / 1024).toStringAsFixed(1)} KB • ${_encodedChunks.length} frames",
-                              style: const TextStyle(color: Colors.grey, fontSize: 12),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                // Framerate Control Slider
-                Row(
-                  children: [
-                    Text("FPS: $_targetFps", style: const TextStyle(fontWeight: FontWeight.bold)),
-                    Expanded(
-                      child: Slider(
-                        value: _targetFps.toDouble(),
-                        min: 15,
-                        max: 60,
-                        divisions: 3,
-                        label: "$_targetFps FPS",
-                        activeColor: Colors.deepPurpleAccent,
-                        onChanged: (val) {
-                          setState(() => _targetFps = val.toInt());
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-
-                // Active Optical Strobe Display
-                Expanded(
-                  child: Center(
-                    child: StrobeRenderer(
-                      chunks: _encodedChunks,
-                      matrixSize: 32,
-                      targetFps: _targetFps,
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
+              ),
+            ),
+            const SizedBox(height: 32),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32.0),
+              child: Column(
+                children: [
+                  LinearProgressIndicator(value: progress),
+                  const SizedBox(height: 8),
+                  Text('${(progress * 100).toStringAsFixed(0)}% Looping'),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );

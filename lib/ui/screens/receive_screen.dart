@@ -1,180 +1,134 @@
-// lib/ui/screens/receive_screen.dart
-
-import 'dart:io';
+import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:camera/camera.dart';
-import 'package:path_provider/path_provider.dart';
-import '../../core/utils/file_chunker.dart';
-import '../../engine/decoder/camera_analyzer.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 
-class ReceiveScreen extends StatefulWidget {
-  final List<CameraDescription> cameras;
-
-  const ReceiveScreen({super.key, required this.cameras});
+class ReceiverScreen extends StatefulWidget {
+  const ReceiverScreen({Key? key}) : super(key: key);
 
   @override
-  State<ReceiveScreen> createState() => _ReceiveScreenState();
+  State<ReceiverScreen> createState() => _ReceiverScreenState();
 }
 
-class _ReceiveScreenState extends State<ReceiveScreen> {
-  CameraController? _cameraController;
-  late CameraAnalyzer _analyzer;
-
-  final Map<int, Uint8List> _receivedChunks = {};
-  int _totalFrames = 0;
-  bool _isProcessingFrame = false;
+class _ReceiverScreenState extends State<ReceiverScreen> {
+  final Map<int, String> _receivedChunks = {};
+  int _totalExpectedFrames = 0;
   bool _isComplete = false;
-  String? _savedFilePath;
+  Uint8List? _assembledBytes;
 
-  @override
-  void initState() {
-    super.initState();
-    _analyzer = CameraAnalyzer(matrixSize: 32);
-    _initializeCamera();
-  }
-
-  Future<void> _initializeCamera() async {
-    if (widget.cameras.isEmpty) return;
-
-    _cameraController = CameraController(
-      widget.cameras.first,
-      ResolutionPreset.high,
-      enableAudio: false,
-      imageFormatGroup: ImageFormatGroup.yuv420,
-    );
+  void _handleBarcode(String rawValue) {
+    if (_isComplete) return;
 
     try {
-      await _cameraController!.initialize();
-      await _cameraController!.setFocusMode(FocusMode.locked);
-      await _cameraController!.setExposureMode(ExposureMode.locked);
+      final parts = rawValue.split('|');
+      if (parts.length != 2) return;
 
-      await _cameraController!.startImageStream((CameraImage image) {
-        if (_isProcessingFrame || _isComplete) return;
-        _isProcessingFrame = true;
+      final headerParts = parts[0].split('/');
+      final frameIndex = int.parse(headerParts[0]);
+      final totalFrames = int.parse(headerParts[1]);
 
-        final result = _analyzer.processCameraImage(image);
-        if (result != null && result.isValid && result.payload != null) {
-          _handleDecodedChunk(result);
-        }
-
-        _isProcessingFrame = false;
-      });
-
-      if (mounted) setState(() {});
-    } catch (e) {
-      debugPrint("Camera startup error: $e");
-    }
-  }
-
-  void _handleDecodedChunk(DecodedFrameResult result) {
-    if (!_receivedChunks.containsKey(result.frameIndex)) {
-      setState(() {
-        _totalFrames = result.totalFrames;
-        _receivedChunks[result.frameIndex] = result.payload!;
-      });
-
-      if (_receivedChunks.length == _totalFrames && _totalFrames > 0) {
-        _finalizeFileDownload();
+      if (_totalExpectedFrames == 0) {
+        setState(() {
+          _totalExpectedFrames = totalFrames;
+        });
       }
+
+      if (!_receivedChunks.containsKey(frameIndex)) {
+        setState(() {
+          _receivedChunks[frameIndex] = parts[1];
+        });
+
+        if (_receivedChunks.length == _totalExpectedFrames) {
+          _assembleFile();
+        }
+      }
+    } catch (e) {
+      // Ignore corrupted or partial frame reads during camera movement
     }
   }
 
-  Future<void> _finalizeFileDownload() async {
-    setState(() => _isComplete = true);
-    await _cameraController?.stopImageStream();
+  void _assembleFile() {
+    _isComplete = true;
 
-    final Uint8List fileBytes = FileChunker.reassemble(_receivedChunks);
-    final Directory dir = await getApplicationDocumentsDirectory();
-    final String path = "${dir.path}/received_file_${DateTime.now().millisecondsSinceEpoch}.bin";
+    final StringBuffer fullBase64 = StringBuffer();
+    for (int i = 0; i < _totalExpectedFrames; i++) {
+      fullBase64.write(_receivedChunks[i]);
+    }
 
-    final File savedFile = File(path);
-    await savedFile.writeAsBytes(fileBytes);
+    final Uint8List decodedBytes = base64Decode(fullBase64.toString());
 
     setState(() {
-      _savedFilePath = path;
+      _assembledBytes = decodedBytes;
     });
-  }
 
-  @override
-  void dispose() {
-    _cameraController?.dispose();
-    super.dispose();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Transfer Complete! Captured ${decodedBytes.length} bytes.',
+        ),
+        backgroundColor: Colors.green,
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final double progress = _totalFrames > 0 ? (_receivedChunks.length / _totalFrames) : 0.0;
+    final double progress = _totalExpectedFrames > 0
+        ? _receivedChunks.length / _totalExpectedFrames
+        : 0.0;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Receive Media')),
-      body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: Stack(
-                children: [
-                  if (_cameraController != null && _cameraController!.value.isInitialized)
-                    CameraPreview(_cameraController!)
-                  else
-                    const Center(child: CircularProgressIndicator()),
-
-                  // Scan Target Overlay Box
-                  Center(
-                    child: Container(
-                      width: 260,
-                      height: 260,
-                      decoration: BoxDecoration(
-                        border: Border.all(
-                          color: _isComplete ? Colors.green : Colors.deepPurpleAccent,
-                          width: 3,
-                        ),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                  ),
-                ],
+      appBar: AppBar(
+        title: const Text('Scan Optical Stream'),
+        centerTitle: true,
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            flex: 4,
+            child: MobileScanner(
+              controller: MobileScannerController(
+                detectionSpeed: DetectionSpeed.noDuplicates,
+                facing: CameraFacing.back,
+                formats: const [BarcodeFormat.qrCode],
               ),
+              onDetect: (capture) {
+                for (final barcode in capture.barcodes) {
+                  if (barcode.rawValue != null) {
+                    _handleBarcode(barcode.rawValue!);
+                  }
+                }
+              },
             ),
-
-            // Progress Dashboard
-            Container(
-              padding: const EdgeInsets.all(20),
-              color: Colors.black87,
+          ),
+          Expanded(
+            flex: 2,
+            child: Container(
+              padding: const EdgeInsets.all(24),
               child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  LinearProgressIndicator(
-                    value: progress,
-                    backgroundColor: Colors.white24,
-                    color: Colors.deepPurpleAccent,
-                    minHeight: 8,
+                  Text(
+                    _isComplete
+                        ? 'Transfer Complete!'
+                        : 'Captured: ${_receivedChunks.length} / $_totalExpectedFrames frames',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        _isComplete
-                            ? "Download Finished!"
-                            : "Captured: ${_receivedChunks.length} / ${_totalFrames == 0 ? '--' : _totalFrames} frames",
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      Text("${(progress * 100).toStringAsFixed(0)}%"),
-                    ],
+                  LinearProgressIndicator(
+                    value: progress,
+                    minHeight: 10,
                   ),
-                  if (_savedFilePath != null) ...[
-                    const SizedBox(height: 12),
-                    Text(
-                      "Saved to: $_savedFilePath",
-                      style: const TextStyle(color: Colors.greenAccent, fontSize: 12),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
+                  const SizedBox(height: 8),
+                  Text('${(progress * 100).toStringAsFixed(0)}% Captured'),
                 ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
