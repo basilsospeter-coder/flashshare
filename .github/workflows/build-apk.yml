@@ -25,6 +25,11 @@ jobs:
         with:
           channel: "stable"
 
+      - name: Create Missing Asset Folders
+        run: |
+          mkdir -p assets/icons
+          mkdir -p assets/images
+
       - name: Recreate Android Project Wrapper
         run: |
           rm -rf android
@@ -32,6 +37,11 @@ jobs:
 
       - name: Get Dependencies
         run: flutter pub get
+
+      - name: Update Android Compile SDK to 36
+        run: |
+          sed -i 's/compileSdk = flutter.compileSdkVersion/compileSdk = 36/g' android/app/build.gradle
+          sed -i 's/targetSdk = flutter.targetSdkVersion/targetSdk = 34/g' android/app/build.gradle
 
       - name: Add Camera Permissions to Manifest
         run: |
