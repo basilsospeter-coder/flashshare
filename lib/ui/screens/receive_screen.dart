@@ -1,14 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class ReceiveScreen extends StatefulWidget {
   const ReceiveScreen({super.key});
-
-  static Route<void> route() {
-    return MaterialPageRoute<void>(
-      builder: (_) => const ReceiveScreen(),
-    );
-  }
 
   @override
   State<ReceiveScreen> createState() => _ReceiveScreenState();
@@ -21,6 +16,20 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
   );
 
   bool _isScanned = false;
+  bool _hasCameraPermission = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkPermission();
+  }
+
+  Future<void> _checkPermission() async {
+    final status = await Permission.camera.request();
+    setState(() {
+      _hasCameraPermission = status.isGranted;
+    });
+  }
 
   @override
   void dispose() {
@@ -39,8 +48,6 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
         });
 
         final String code = barcode.rawValue!;
-        debugPrint('QR Code Scanned: $code');
-
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Connected to: $code'),
@@ -48,7 +55,6 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
           ),
         );
 
-        // Return the scanned payload back to the home screen or handle connection
         Navigator.pop(context, code);
         break;
       }
@@ -57,12 +63,32 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (!_hasCameraPermission) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Scan QR Code')),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.camera_alt_outlined, size: 64, color: Colors.grey),
+              const SizedBox(height: 16),
+              const Text('Camera permission is required to scan QR codes.'),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: _checkPermission,
+                child: const Text('Grant Camera Permission'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Scan QR Code'),
         centerTitle: true,
         actions: [
-          // Torch toggle
           IconButton(
             icon: ValueListenableBuilder(
               valueListenable: _controller,
@@ -76,7 +102,6 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
             ),
             onPressed: () => _controller.toggleTorch(),
           ),
-          // Switch camera toggle
           IconButton(
             icon: const Icon(Icons.cameraswitch_rounded),
             onPressed: () => _controller.switchCamera(),
@@ -85,13 +110,10 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
       ),
       body: Stack(
         children: [
-          // Scanner Camera Feed
           MobileScanner(
             controller: _controller,
             onDetect: _onDetect,
           ),
-
-          // Visual Scan Target Window Overlay
           Center(
             child: Container(
               width: 260,
@@ -100,31 +122,6 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
                 border: Border.all(color: Colors.deepPurple, width: 3),
                 borderRadius: BorderRadius.circular(16),
                 color: Colors.black.withOpacity(0.1),
-              ),
-            ),
-          ),
-
-          // Bottom Instruction Label
-          Positioned(
-            bottom: 40,
-            left: 24,
-            right: 24,
-            child: Container(
-              padding: const EdgeInsets.symmetric(
-                vertical: 12,
-                horizontal: 20,
-              ),
-              decoration: BoxDecoration(
-                color: Colors.black87,
-                borderRadius: BorderRadius.circular(24),
-              ),
-              child: const Text(
-                'Align QR code within the frame to connect',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                ),
               ),
             ),
           ),

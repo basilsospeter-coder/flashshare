@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'send_screen.dart';
 import 'receive_screen.dart';
 
@@ -19,13 +20,26 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _navigateToReceiveScreen() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const ReceiveScreen(),
-      ),
-    );
+  Future<void> _navigateToReceiveScreen() async {
+    // Explicitly request camera permission before launching scanner screen
+    final status = await Permission.camera.request();
+    if (status.isGranted) {
+      if (!mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const ReceiveScreen(),
+        ),
+      );
+    } else {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Camera permission is required to scan QR codes.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   @override
@@ -43,6 +57,7 @@ class _HomeScreenState extends State<HomeScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // Header Icon and Title
               const Icon(
                 Icons.flash_on_rounded,
                 size: 80,
@@ -65,6 +80,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
               ),
               const SizedBox(height: 48),
+
+              // Send Action Card
               Card(
                 elevation: 2,
                 shape: RoundedRectangleBorder(
@@ -116,6 +133,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               const SizedBox(height: 16),
+
+              // Receive Action Card
               Card(
                 elevation: 2,
                 shape: RoundedRectangleBorder(
