@@ -17,9 +17,9 @@ dependencies:
   path_provider: ^2.1.2
   cupertino_icons: ^1.0.6
 
-  # Dependencies for QR code generation and scanning
+  # Dependencies for QR code generation and reliable scanning
   qr_flutter: ^4.1.0
-  mobile_scanner: ^5.0.0
+  ai_barcode_scanner: ^0.6.0
 
 dev_dependencies:
   flutter_test:
