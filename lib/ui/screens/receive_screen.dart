@@ -27,9 +27,11 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
 
   Future<void> _requestPermission() async {
     final status = await Permission.camera.request();
-    setState(() {
-      _hasPermission = status.isGranted;
-    });
+    if (mounted) {
+      setState(() {
+        _hasPermission = status.isGranted;
+      });
+    }
   }
 
   @override
@@ -44,7 +46,8 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.camera_alt_outlined, size: 64, color: Colors.grey),
+                  const Icon(Icons.camera_alt_outlined,
+                      size: 64, color: Colors.grey),
                   const SizedBox(height: 16),
                   const Text('Camera permission is required to scan QR codes.'),
                   const SizedBox(height: 16),
@@ -56,29 +59,35 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
               ),
             )
           : AiBarcodeScanner(
-              onScan: (String code) {
-                if (_isScanned) return;
-                setState(() {
-                  _isScanned = true;
-                });
-
-                debugPrint('QR Code Scanned: $code');
-
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Connected to: $code'),
-                    backgroundColor: Colors.green,
-                  ),
-                );
-
-                Navigator.pop(context, code);
-              },
+              controller: MobileScannerController(
+                detectionSpeed: DetectionSpeed.normal,
+              ),
               onDetect: (BarcodeCapture capture) {
-                // Additional detection callback if needed
+                if (_isScanned) return;
+
+                final List<Barcode> barcodes = capture.barcodes;
+                for (final barcode in barcodes) {
+                  if (barcode.rawValue != null) {
+                    setState(() {
+                      _isScanned = true;
+                    });
+
+                    final String code = barcode.rawValue!;
+                    debugPrint('QR Code Scanned: $code');
+
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Connected to: $code'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+
+                    Navigator.pop(context, code);
+                    break;
+                  }
+                }
               },
               canPop: true,
-              showSuccessPage: false,
-              hideSheetTitle: true,
             ),
     );
   }
