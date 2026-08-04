@@ -87,7 +87,6 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
                   }
                 }
               },
-              canPop: true,
             ),
     );
   }
