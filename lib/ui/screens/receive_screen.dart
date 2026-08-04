@@ -10,122 +10,157 @@ class ReceiveScreen extends StatefulWidget {
 }
 
 class _ReceiveScreenState extends State<ReceiveScreen> {
-  final MobileScannerController _controller = MobileScannerController(
-    detectionSpeed: DetectionSpeed.normal,
-    facing: CameraFacing.back,
-  );
-
-  bool _isScanned = false;
+  MobileScannerController? _controller;
   bool _hasCameraPermission = false;
+  String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
-    _checkPermission();
+    _initScanner();
   }
 
-  Future<void> _checkPermission() async {
+  Future<void> _initScanner() async {
     final status = await Permission.camera.request();
-    setState(() {
-      _hasCameraPermission = status.isGranted;
-    });
+    if (status.isGranted) {
+      setState(() {
+        _hasCameraPermission = true;
+        _controller = MobileScannerController(
+          detectionSpeed: DetectionSpeed.normal,
+          facing: CameraFacing.back,
+          torchEnabled: false,
+        );
+      });
+    } else {
+      setState(() {
+        _errorMessage = 'Camera permission was denied.';
+      });
+    }
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _controller?.dispose();
     super.dispose();
-  }
-
-  void _onDetect(BarcodeCapture capture) {
-    if (_isScanned) return;
-
-    final List<Barcode> barcodes = capture.barcodes;
-    for (final barcode in barcodes) {
-      if (barcode.rawValue != null) {
-        setState(() {
-          _isScanned = true;
-        });
-
-        final String code = barcode.rawValue!;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Connected to: $code'),
-            backgroundColor: Colors.green,
-          ),
-        );
-
-        Navigator.pop(context, code);
-        break;
-      }
-    }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (!_hasCameraPermission) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Scan QR Code')),
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.camera_alt_outlined, size: 64, color: Colors.grey),
-              const SizedBox(height: 16),
-              const Text('Camera permission is required to scan QR codes.'),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: _checkPermission,
-                child: const Text('Grant Camera Permission'),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
     return Scaffold(
+      backgroundColor: Colors.black,
       appBar: AppBar(
         title: const Text('Scan QR Code'),
-        centerTitle: true,
         actions: [
-          IconButton(
-            icon: ValueListenableBuilder(
-              valueListenable: _controller,
-              builder: (context, state, child) {
-                return Icon(
-                  state.torchState == TorchState.on
-                      ? Icons.flash_on_rounded
-                      : Icons.flash_off_rounded,
-                );
-              },
+          if (_controller != null) ...[
+            IconButton(
+              icon: ValueListenableBuilder(
+                valueListenable: _controller!,
+                builder: (context, state, child) {
+                  return Icon(
+                    state.torchState == TorchState.on
+                        ? Icons.flash_on
+                        : Icons.flash_off,
+                  );
+                },
+              ),
+              onPressed: () => _controller?.toggleTorch(),
             ),
-            onPressed: () => _controller.toggleTorch(),
-          ),
-          IconButton(
-            icon: const Icon(Icons.cameraswitch_rounded),
-            onPressed: () => _controller.switchCamera(),
-          ),
+            IconButton(
+              icon: const Icon(Icons.cameraswitch),
+              onPressed: () => _controller?.switchCamera(),
+            ),
+          ],
         ],
       ),
-      body: Stack(
-        children: [
-          MobileScanner(
-            controller: _controller,
-            onDetect: _onDetect,
-          ),
-          Center(
-            child: Container(
-              width: 260,
-              height: 260,
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.deepPurple, width: 3),
-                borderRadius: BorderRadius.circular(16),
-                color: Colors.black.withOpacity(0.1),
+      body: Builder(
+        builder: (context) {
+          if (!_hasCameraPermission) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    _errorMessage ?? 'Requesting camera permission...',
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: _initScanner,
+                    child: const Text('Grant Permission'),
+                  ),
+                ],
               ),
-            ),
-          ),
-        ],
+            );
+          }
+
+          if (_controller == null) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          return Stack(
+            children: [
+              MobileScanner(
+                controller: _controller,
+                onDetect: (capture) {
+                  final barcodes = capture.barcodes;
+                  if (barcodes.isNotEmpty && barcodes.first.rawValue != null) {
+                    Navigator.pop(context, barcodes.first.rawValue);
+                  }
+                },
+                errorBuilder: (context, error, child) {
+                  return Padding(
+                    padding: const EdgeInsets.all(24.0),
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.warning_amber_rounded,
+                              color: Colors.red, size: 60),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Camera Error Code:\n${error.errorCode}',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Colors.redAccent,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          SelectableText(
+                            'Details: ${error.errorDetails?.message ?? error.toString()}',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 12,
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          ElevatedButton(
+                            onPressed: () {
+                              _controller?.start();
+                            },
+                            child: const Text('Restart Camera'),
+                          )
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+              Center(
+                child: Container(
+                  width: 250,
+                  height: 250,
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.purple, width: 3),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
