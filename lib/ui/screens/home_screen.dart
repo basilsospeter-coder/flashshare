@@ -43,7 +43,6 @@ class _HomeScreenState extends State<HomeScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Header Icon and Title
               const Icon(
                 Icons.flash_on_rounded,
                 size: 80,
@@ -66,8 +65,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
               ),
               const SizedBox(height: 48),
-
-              // Send Action Card
               Card(
                 elevation: 2,
                 shape: RoundedRectangleBorder(
@@ -119,8 +116,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-
-              // Receive Action Card
               Card(
                 elevation: 2,
                 shape: RoundedRectangleBorder(
@@ -177,5 +172,4 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
-}
 }

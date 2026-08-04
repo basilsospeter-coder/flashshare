@@ -1,39 +1,24 @@
 import 'package:flutter/material.dart';
-import 'package:camera/camera.dart';
 import 'ui/screens/home_screen.dart';
 
-List<CameraDescription> cameras = [];
-
-Future<void> main() async {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  try {
-    // Obtain list of available cameras on application startup
-    cameras = await availableCameras();
-  } catch (e) {
-    debugPrint('Camera initialization error: $e');
-  }
-
-  runApp(const FlashShareApp());
+  runApp(const MyApp());
 }
 
-class FlashShareApp extends StatelessWidget {
-  const FlashShareApp({super.key});
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'FlashShare',
+      title: 'Flash Sender',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.deepPurple,
-          brightness: Brightness.dark,
-        ),
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
-        scaffoldBackgroundColor: const Color(0xFF121212),
       ),
-      home: HomeScreen(cameras: cameras),
+      home: const HomeScreen(),
     );
   }
 }

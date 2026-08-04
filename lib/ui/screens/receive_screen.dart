@@ -42,10 +42,13 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
         debugPrint('QR Code Scanned: $code');
 
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Connected to: $code')),
+          SnackBar(
+            content: Text('Connected to: $code'),
+            backgroundColor: Colors.green,
+          ),
         );
 
-        // Pop screen or transition to receiving payload state
+        // Return the scanned payload back to the home screen or handle connection
         Navigator.pop(context, code);
         break;
       }
@@ -57,39 +60,71 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Scan QR Code'),
+        centerTitle: true,
         actions: [
+          // Torch toggle
           IconButton(
             icon: ValueListenableBuilder(
               valueListenable: _controller,
               builder: (context, state, child) {
                 return Icon(
                   state.torchState == TorchState.on
-                      ? Icons.flash_on
-                      : Icons.flash_off,
+                      ? Icons.flash_on_rounded
+                      : Icons.flash_off_rounded,
                 );
               },
             ),
             onPressed: () => _controller.toggleTorch(),
           ),
+          // Switch camera toggle
           IconButton(
-            icon: const Icon(Icons.cameraswitch),
+            icon: const Icon(Icons.cameraswitch_rounded),
             onPressed: () => _controller.switchCamera(),
           ),
         ],
       ),
       body: Stack(
         children: [
+          // Scanner Camera Feed
           MobileScanner(
             controller: _controller,
             onDetect: _onDetect,
           ),
+
+          // Visual Scan Target Window Overlay
           Center(
             child: Container(
-              width: 250,
-              height: 250,
+              width: 260,
+              height: 260,
               decoration: BoxDecoration(
-                border: Border.all(color: Colors.green, width: 3),
+                border: Border.all(color: Colors.deepPurple, width: 3),
                 borderRadius: BorderRadius.circular(16),
+                color: Colors.black.withOpacity(0.1),
+              ),
+            ),
+          ),
+
+          // Bottom Instruction Label
+          Positioned(
+            bottom: 40,
+            left: 24,
+            right: 24,
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                vertical: 12,
+                horizontal: 20,
+              ),
+              decoration: BoxDecoration(
+                color: Colors.black87,
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: const Text(
+                'Align QR code within the frame to connect',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                ),
               ),
             ),
           ),

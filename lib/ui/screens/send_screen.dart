@@ -9,7 +9,6 @@ class SendScreen extends StatefulWidget {
     this.qrData = 'flash_sender_connect_payload',
   });
 
-  @style
   static Route<void> route({String qrData = 'flash_sender_connect_payload'}) {
     return MaterialPageRoute<void>(
       builder: (_) => SendScreen(qrData: qrData),
@@ -59,7 +58,7 @@ class _SendScreenState extends State<SendScreen> {
             const SizedBox(height: 32),
             ElevatedButton.icon(
               onPressed: () {
-                // Logic to pick files or trigger transfer
+                // Logic to pick files
               },
               icon: const Icon(Icons.attach_file),
               label: const Text('Select Files to Send'),
