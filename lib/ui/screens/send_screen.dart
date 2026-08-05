@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -8,128 +9,119 @@ class SendScreen extends StatefulWidget {
   final String fileName;
 
   const SendScreen({
-    Key? key,
+    super.key,
     required this.fileBytes,
     required this.fileName,
-  }) : super(key: key);
+  });
 
   @override
   State<SendScreen> createState() => _SendScreenState();
 }
 
 class _SendScreenState extends State<SendScreen> {
-  List<String> _qrFrames = [];
-  int _currentFrameIndex = 0;
-  Timer? _transmissionTimer;
+  List<String> _qrChunks = [];
+  int _currentIndex = 0;
+  Timer? _streamTimer;
 
-  // SPEED ENGINE: 700 bytes chunk size + 100ms update rate (~10 FPS)
-  static const int _chunkSize = 700;
-  static const int _frameIntervalMs = 100;
+  // BUFFED CONFIGURATION
+  static const int chunkSize = 1400; // ~1.4KB payload per frame
+  static const Duration frameInterval = Duration(milliseconds: 40); // 25 FPS
 
   @override
   void initState() {
     super.initState();
-    _prepareFrames();
-    _startTransmission();
+    _prepareChunks();
+    _startStreaming();
   }
 
-  void _prepareFrames() {
-    final StringBuffer hexBuffer = StringBuffer();
-    for (int b in widget.fileBytes) {
-      hexBuffer.write(b.toRadixString(16).padLeft(2, '0'));
+  void _prepareChunks() {
+    // 1. Encode file bytes directly to Base64
+    final String base64Data = base64Encode(widget.fileBytes);
+    final int totalLength = base64Data.length;
+    final int totalChunks = (totalLength / chunkSize).ceil();
+
+    List<String> chunks = [];
+    for (int i = 0; i < totalChunks; i++) {
+      int start = i * chunkSize;
+      int end = (start + chunkSize < totalLength) ? start + chunkSize : totalLength;
+      String payload = base64Data.substring(start, end);
+
+      // Header: fileName|index|total|payload
+      chunks.add('${widget.fileName}|$i|$totalChunks|$payload');
     }
-    final String hexData = hexBuffer.toString();
 
-    final List<String> rawChunks = [];
-    final int hexChunkSize = _chunkSize * 2;
-
-    for (int i = 0; i < hexData.length; i += hexChunkSize) {
-      int end = (i + hexChunkSize < hexData.length)
-          ? i + hexChunkSize
-          : hexData.length;
-      rawChunks.add(hexData.substring(i, end));
-    }
-
-    final int totalFrames = rawChunks.length;
-
-    _qrFrames = List.generate(totalFrames, (index) {
-      return '${widget.fileName}|$index/$totalFrames|${rawChunks[index]}';
+    setState(() {
+      _qrChunks = chunks;
     });
   }
 
-  void _startTransmission() {
-    _transmissionTimer?.cancel();
-    _transmissionTimer = Timer.periodic(
-      const Duration(milliseconds: _frameIntervalMs),
-      (timer) {
-        if (_qrFrames.isNotEmpty) {
-          setState(() {
-            _currentFrameIndex = (_currentFrameIndex + 1) % _qrFrames.length;
-          });
-        }
-      },
-    );
+  void _startStreaming() {
+    _streamTimer = Timer.periodic(frameInterval, (timer) {
+      if (_qrChunks.isNotEmpty) {
+        setState(() {
+          _currentIndex = (_currentIndex + 1) % _qrChunks.length;
+        });
+      }
+    });
   }
 
   @override
   void dispose() {
-    _transmissionTimer?.cancel();
+    _streamTimer?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_qrFrames.isEmpty) {
+    if (_qrChunks.isEmpty) {
       return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
+        backgroundColor: Colors.black,
+        body: Center(
+          child: CircularProgressIndicator(color: Colors.white),
+        ),
       );
     }
 
-    final double progress = (_currentFrameIndex + 1) / _qrFrames.length;
+    final double progress = ((_currentIndex + 1) / _qrChunks.length) * 100;
 
     return Scaffold(
+      backgroundColor: Colors.black,
       appBar: AppBar(
-        title: const Text('Transmitting File'),
-        centerTitle: true,
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        title: Text(
+          'Streaming FlashShare (${_currentIndex + 1}/${_qrChunks.length})',
+          style: const TextStyle(fontSize: 16),
+        ),
       ),
       body: SafeArea(
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(
-              widget.fileName,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            LinearProgressIndicator(
+              value: (_currentIndex + 1) / _qrChunks.length,
+              backgroundColor: Colors.grey[900],
+              color: Colors.blueAccent,
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Frame ${_currentFrameIndex + 1} of ${_qrFrames.length}',
-              style: const TextStyle(color: Colors.grey),
-            ),
-            const SizedBox(height: 20),
-            Center(
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
+            Expanded(
+              child: Center(
+                child: Container(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: QrImageView(
-                  data: _qrFrames[_currentFrameIndex],
-                  version: QrVersions.auto,
-                  size: 300.0,
-                  errorCorrectionLevel: QrErrorCorrectLevel.L,
+                  padding: const EdgeInsets.all(12),
+                  child: QrImageView(
+                    data: _qrChunks[_currentIndex],
+                    version: QrVersions.auto,
+                    size: 340.0,
+                    gapless: false,
+                    errorCorrectionLevel: QrErrorCorrectLevel.L,
+                  ),
                 ),
               ),
             ),
-            const SizedBox(height: 24),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32.0),
-              child: Column(
-                children: [
-                  LinearProgressIndicator(value: progress),
-                  const SizedBox(height: 8),
-                  Text('${(progress * 100).toStringAsFixed(0)}% Streaming'),
-                ],
+              padding: const EdgeInsets.only(bottom: 24.0),
+              child: Text(
+                'Streaming Frame Rate: ~25 FPS | ${progress.toStringAsFixed(1)}% Loop',
+                style: const TextStyle(color: Colors.grey, fontSize: 13),
               ),
             ),
           ],
