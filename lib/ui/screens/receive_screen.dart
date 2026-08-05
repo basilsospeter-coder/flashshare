@@ -14,7 +14,7 @@ class ReceiveScreen extends StatefulWidget {
 }
 
 class _ReceiveScreenState extends State<ReceiveScreen> {
-  final MobileScannerController controller = MobileScannerController(
+  MobileScannerController controller = MobileScannerController(
     detectionSpeed: DetectionSpeed.unrestricted,
     facing: CameraFacing.back,
     torchEnabled: false,
@@ -24,6 +24,9 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
   bool _hasPermission = false;
   bool _isInitializing = true;
   bool _isSaving = false;
+
+  // Detailed debug error capture
+  String _debugErrorLog = "";
 
   final Map<int, String> _receivedChunks = {};
   int _totalChunks = 0;
@@ -36,7 +39,10 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
   }
 
   Future<void> _checkPermissions() async {
+    debugPrint("[FlashShare Debug] Checking camera permissions...");
     final status = await Permission.camera.request();
+    debugPrint("[FlashShare Debug] Camera Permission Status: $status");
+
     if (status.isGranted) {
       setState(() {
         _hasPermission = true;
@@ -45,6 +51,37 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
     } else {
       setState(() {
         _hasPermission = false;
+        _isInitializing = false;
+        _debugErrorLog = "Permission denied by OS ($status). Check App Settings.";
+      });
+    }
+  }
+
+  Future<void> _restartCamera() async {
+    debugPrint("[FlashShare Debug] Resetting MobileScannerController...");
+    setState(() {
+      _isInitializing = true;
+      _debugErrorLog = "";
+    });
+
+    try {
+      await controller.dispose();
+      controller = MobileScannerController(
+        detectionSpeed: DetectionSpeed.unrestricted,
+        facing: CameraFacing.back,
+        torchEnabled: false,
+        returnImage: false,
+      );
+      await controller.start();
+      debugPrint("[FlashShare Debug] Camera restarted successfully.");
+    } catch (e, stack) {
+      debugPrint("[FlashShare Debug] Error during camera restart: $e");
+      debugPrint(stack.toString());
+      setState(() {
+        _debugErrorLog = "Restart Failure:\n$e";
+      });
+    } finally {
+      setState(() {
         _isInitializing = false;
       });
     }
@@ -85,7 +122,7 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
     });
 
     try {
-      controller.stop();
+      await controller.stop();
 
       // 1. Re-assemble Base64 stream sequentially
       StringBuffer sb = StringBuffer();
@@ -143,7 +180,7 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
           TextButton(
             onPressed: () {
               Navigator.pop(context);
-              Navigator.pop(context); // Return home
+              Navigator.pop(context);
             },
             child: const Text('OK'),
           ),
@@ -168,17 +205,31 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
 
     if (!_hasPermission) {
       return Scaffold(
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Text('Camera permission required to scan optical stream.'),
-              const SizedBox(height: 12),
-              ElevatedButton(
-                onPressed: _checkPermissions,
-                child: const Text('Grant Camera Permission'),
-              ),
-            ],
+        body: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.security, size: 60, color: Colors.amber),
+                const SizedBox(height: 16),
+                const Text(
+                  'Camera Permission Denied',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                Text(_debugErrorLog, textAlign: TextAlign.center),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: _checkPermissions,
+                  child: const Text('Request Permission Again'),
+                ),
+                TextButton(
+                  onPressed: () => openAppSettings(),
+                  child: const Text('Open System App Settings'),
+                ),
+              ],
+            ),
           ),
         ),
       );
@@ -207,22 +258,68 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
               }
             },
             errorBuilder: (context, error, child) {
-              return Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.error_outline, color: Colors.red, size: 60),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Camera Error: ${error.errorCode}',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+              // Extract detailed exception information
+              final String errorCode = error.errorCode.name;
+              final String errorMessage = error.message ?? "No detailed error message string provided";
+              final Object? errorDetails = error.errorDetails;
+
+              debugPrint("================ [MOBILE SCANNER CRASH] ================");
+              debugPrint("Error Code: $errorCode");
+              debugPrint("Message: $errorMessage");
+              debugPrint("Details: $errorDetails");
+              debugPrint("Raw Exception: $error");
+              debugPrint("=========================================================");
+
+              return Container(
+                color: Colors.black,
+                padding: const EdgeInsets.all(20),
+                child: Center(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.bug_report, color: Colors.redAccent, size: 60),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'Camera Engine Failed',
+                          style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[900],
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.redAccent.withOpacity(0.5)),
+                          ),
+                          child: SelectionArea(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Code: $errorCode', style: const TextStyle(color: Colors.yellowAccent, fontWeight: FontWeight.bold)),
+                                const Divider(color: Colors.grey),
+                                Text('Message: $errorMessage', style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                                if (errorDetails != null) ...[
+                                  const SizedBox(height: 6),
+                                  Text('Details: $errorDetails', style: const TextStyle(color: Colors.redAccent, fontSize: 11)),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        ElevatedButton.icon(
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('Re-initialize Controller'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blueAccent,
+                            foregroundColor: Colors.white,
+                          ),
+                          onPressed: _restartCamera,
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 12),
-                    ElevatedButton(
-                      onPressed: () => controller.start(),
-                      child: const Text('Restart Camera'),
-                    ),
-                  ],
+                  ),
                 ),
               );
             },
