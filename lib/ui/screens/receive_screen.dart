@@ -1,93 +1,128 @@
-import 'package:ai_barcode_scanner/ai_barcode_scanner.dart';
+import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:permission_handler/permission_handler.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 
-class ReceiveScreen extends StatefulWidget {
-  const ReceiveScreen({super.key});
+class ReceiverScreen extends StatefulWidget {
+  const ReceiverScreen({Key? key}) : super(key: key);
 
-  static Route<void> route() {
-    return MaterialPageRoute<void>(
-      builder: (_) => const ReceiveScreen(),
+  @override
+  State<ReceiverScreen> createState() => _ReceiverScreenState();
+}
+
+class _ReceiverScreenState extends State<ReceiverScreen> {
+  final Map<int, String> _receivedChunks = {};
+  int _totalExpectedFrames = 0;
+  bool _isComplete = false;
+
+  void _handleBarcode(String rawValue) {
+    if (_isComplete) return;
+
+    try {
+      final parts = rawValue.split('|');
+      if (parts.length != 2) return;
+
+      final headerParts = parts[0].split('/');
+      final frameIndex = int.parse(headerParts[0]);
+      final totalFrames = int.parse(headerParts[1]);
+
+      if (_totalExpectedFrames == 0) {
+        setState(() {
+          _totalExpectedFrames = totalFrames;
+        });
+      }
+
+      if (!_receivedChunks.containsKey(frameIndex)) {
+        setState(() {
+          _receivedChunks[frameIndex] = parts[1];
+        });
+
+        if (_receivedChunks.length == _totalExpectedFrames) {
+          _assembleFile();
+        }
+      }
+    } catch (e) {
+      // Ignore unreadable frames during focus shifts
+    }
+  }
+
+  void _assembleFile() {
+    _isComplete = true;
+
+    final StringBuffer fullBase64 = StringBuffer();
+    for (int i = 0; i < _totalExpectedFrames; i++) {
+      fullBase64.write(_receivedChunks[i]);
+    }
+
+    final Uint8List decodedBytes = base64Decode(fullBase64.toString());
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('File Transfer Complete! (${decodedBytes.length} bytes)'),
+        backgroundColor: Colors.green,
+      ),
     );
   }
 
   @override
-  State<ReceiveScreen> createState() => _ReceiveScreenState();
-}
-
-class _ReceiveScreenState extends State<ReceiveScreen> {
-  bool _isScanned = false;
-  bool _hasPermission = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _requestPermission();
-  }
-
-  Future<void> _requestPermission() async {
-    final status = await Permission.camera.request();
-    if (mounted) {
-      setState(() {
-        _hasPermission = status.isGranted;
-      });
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
+    final double progress = _totalExpectedFrames > 0
+        ? _receivedChunks.length / _totalExpectedFrames
+        : 0.0;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Scan QR Code'),
+        title: const Text('Scan Optical Stream'),
         centerTitle: true,
       ),
-      body: !_hasPermission
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.camera_alt_outlined,
-                      size: 64, color: Colors.grey),
-                  const SizedBox(height: 16),
-                  const Text('Camera permission is required to scan QR codes.'),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: _requestPermission,
-                    child: const Text('Grant Camera Permission'),
-                  ),
-                ],
-              ),
-            )
-          : AiBarcodeScanner(
+      body: Column(
+        children: [
+          Expanded(
+            flex: 4,
+            child: MobileScanner(
               controller: MobileScannerController(
-                detectionSpeed: DetectionSpeed.normal,
+                detectionSpeed: DetectionSpeed.noDuplicates,
+                facing: CameraFacing.back,
+                formats: const [BarcodeFormat.qrCode],
               ),
-              onDetect: (BarcodeCapture capture) {
-                if (_isScanned) return;
-
-                final List<Barcode> barcodes = capture.barcodes;
-                for (final barcode in barcodes) {
+              onDetect: (capture) {
+                for (final barcode in capture.barcodes) {
                   if (barcode.rawValue != null) {
-                    setState(() {
-                      _isScanned = true;
-                    });
-
-                    final String code = barcode.rawValue!;
-                    debugPrint('QR Code Scanned: $code');
-
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Connected to: $code'),
-                        backgroundColor: Colors.green,
-                      ),
-                    );
-
-                    Navigator.pop(context, code);
-                    break;
+                    _handleBarcode(barcode.rawValue!);
                   }
                 }
               },
             ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    _isComplete
+                        ? 'Transfer Complete!'
+                        : 'Captured: ${_receivedChunks.length} / $_totalExpectedFrames frames',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  LinearProgressIndicator(
+                    value: progress,
+                    minHeight: 10,
+                  ),
+                  const SizedBox(height: 8),
+                  Text('${(progress * 100).toStringAsFixed(0)}% Captured'),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

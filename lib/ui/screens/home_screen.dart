@@ -1,187 +1,182 @@
 import 'package:flutter/material.dart';
-import 'package:permission_handler/permission_handler.dart';
-import 'send_screen.dart';
-import 'receive_screen.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
+import 'sender_screen.dart';
+import 'receiver_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  const HomeScreen({Key? key}) : super(key: key);
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  void _navigateToSendScreen() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const SendScreen(),
-      ),
-    );
-  }
+  String? _connectedPayload;
 
-  Future<void> _navigateToReceiveScreen() async {
-    // Explicitly request camera permission before launching scanner screen
-    final status = await Permission.camera.request();
-    if (status.isGranted) {
+  Future<void> _pickAndSendFile() async {
+    final result = await FilePicker.platform.pickFiles(withData: true);
+
+    if (result != null && result.files.single.bytes != null) {
+      final file = result.files.single;
+
       if (!mounted) return;
-      Navigator.push(
-        context,
+      Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (context) => const ReceiveScreen(),
-        ),
-      );
-    } else {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Camera permission is required to scan QR codes.'),
-          backgroundColor: Colors.red,
+          builder: (context) => SenderScreen(
+            fileBytes: file.bytes!,
+            fileName: file.name,
+          ),
         ),
       );
     }
   }
 
+  void _startConnectionScanner() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => SizedBox(
+        height: 400,
+        child: MobileScanner(
+          controller: MobileScannerController(
+            detectionSpeed: DetectionSpeed.noDuplicates,
+            facing: CameraFacing.back,
+          ),
+          onDetect: (capture) {
+            for (final barcode in capture.barcodes) {
+              if (barcode.rawValue != null) {
+                final val = barcode.rawValue!;
+                if (val.contains('flash_sender_connect_payload') || val.isNotEmpty) {
+                  setState(() {
+                    _connectedPayload = val;
+                  });
+                  Navigator.of(context).pop();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Connected! Pick a file to start sending.'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                  _pickAndSendFile();
+                  break;
+                }
+              }
+            }
+          },
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isConnected = _connectedPayload != null;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Flash Sender'),
         centerTitle: true,
-        elevation: 0,
       ),
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+          padding: const EdgeInsets.all(20.0),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Header Icon and Title
+              const SizedBox(height: 20),
               const Icon(
-                Icons.flash_on_rounded,
+                Icons.flash_on,
                 size: 80,
                 color: Colors.deepPurple,
               ),
               const SizedBox(height: 16),
-              Text(
+              const Text(
                 'Fast Local Sharing',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
-              Text(
+              const Text(
                 'Send or receive files effortlessly using local peer-to-peer connection.',
                 textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Colors.grey[600],
-                    ),
+                style: TextStyle(color: Colors.grey),
               ),
-              const SizedBox(height: 48),
+              const SizedBox(height: 40),
 
-              // Send Action Card
+              // SEND BUTTON
               Card(
                 elevation: 2,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: InkWell(
-                  onTap: _navigateToSendScreen,
-                  borderRadius: BorderRadius.circular(16),
-                  child: const Padding(
-                    padding: EdgeInsets.all(20.0),
-                    child: Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 28,
-                          backgroundColor: Colors.deepPurple,
-                          child: Icon(
-                            Icons.send_rounded,
-                            color: Colors.white,
-                            size: 28,
-                          ),
-                        ),
-                        SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Send',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              SizedBox(height: 4),
-                              Text(
-                                'Generate QR code & share files',
-                                style: TextStyle(
-                                  color: Colors.grey,
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Icon(Icons.arrow_forward_ios_rounded, size: 18),
-                      ],
-                    ),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                child: ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  leading: const CircleAvatar(
+                    backgroundColor: Colors.deepPurple,
+                    child: Icon(Icons.send, color: Colors.white),
                   ),
+                  title: const Text('Send', style: TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: const Text('Generate QR code & share files'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: _pickAndSendFile,
                 ),
               ),
               const SizedBox(height: 16),
 
-              // Receive Action Card
+              // RECEIVE BUTTON
               Card(
                 elevation: 2,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                child: ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  leading: const CircleAvatar(
+                    backgroundColor: Colors.teal,
+                    child: Icon(Icons.qr_code_scanner, color: Colors.white),
+                  ),
+                  title: const Text('Receive', style: TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: const Text("Scan sender's QR code to connect"),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (context) => const ReceiverScreen(),
+                      ),
+                    );
+                  },
                 ),
-                child: InkWell(
-                  onTap: _navigateToReceiveScreen,
-                  borderRadius: BorderRadius.circular(16),
-                  child: const Padding(
-                    padding: EdgeInsets.all(20.0),
-                    child: Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 28,
-                          backgroundColor: Colors.teal,
-                          child: Icon(
-                            Icons.qr_code_scanner_rounded,
-                            color: Colors.white,
-                            size: 28,
-                          ),
-                        ),
-                        SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Receive',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              SizedBox(height: 4),
-                              Text(
-                                'Scan sender\'s QR code to connect',
-                                style: TextStyle(
-                                  color: Colors.grey,
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Icon(Icons.arrow_forward_ios_rounded, size: 18),
-                      ],
-                    ),
+              ),
+
+              const Spacer(),
+
+              // ACTION BUTTON WHEN CONNECTED
+              if (isConnected) ...[
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.deepPurple,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size.fromHeight(52),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  onPressed: _pickAndSendFile,
+                  icon: const Icon(Icons.attach_file),
+                  label: const Text('Select File to Send', style: TextStyle(fontSize: 18)),
+                ),
+                const SizedBox(height: 16),
+              ],
+
+              // CONNECTION STATUS BAR
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                decoration: BoxDecoration(
+                  color: isConnected ? Colors.green : Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  isConnected
+                      ? 'Connected to: $_connectedPayload'
+                      : 'Tap "Send" or "Receive" to connect',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: isConnected ? Colors.white : Colors.black87,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ),
