@@ -21,13 +21,11 @@ jobs:
           files=(gradlew android/gradlew gradle/wrapper/gradle-wrapper.sh)
           for f in "${files[@]}"; do
             if [ -f "$f" ]; then
-              # Remove any CR characters reliably
               tr -d '\r' < "$f" > "$f.tmp" && mv "$f.tmp" "$f"
               chmod +x "$f"
             fi
           done
 
-          # Verify & force canonical shebang
           for f in "${files[@]}"; do
             if [ -f "$f" ]; then
               awk 'NR==1{print "#!/usr/bin/env sh"; next} {print}' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
@@ -46,6 +44,11 @@ jobs:
         with:
           channel: "stable"
 
+      - name: Check Flutter & Android Toolchain
+        run: |
+          flutter --version
+          flutter doctor -v
+
       - name: Create Missing Asset Folders
         run: |
           mkdir -p assets/icons
@@ -59,11 +62,20 @@ jobs:
           mkdir -p ~/.gradle
           echo "allprojects { afterEvaluate { project -> if (project.hasProperty('android')) { project.android { compileSdkVersion 36 } } } }" > ~/.gradle/init.gradle
 
-      - name: Build Release APK
-        run: flutter build apk --release --no-tree-shake-icons
+      - name: Build Release APK (Verbose)
+        run: flutter build apk --release --no-tree-shake-icons -v
+
+      - name: Upload Full Build Folder for Debugging
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flashshare-build-folder
+          path: build/**
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: flashshare-release-apk
-          path: build/app/outputs/flutter-apk/*.apk
+          path: |
+            build/app/outputs/flutter-apk/*.apk
+            build/app/outputs/**/*.apk
