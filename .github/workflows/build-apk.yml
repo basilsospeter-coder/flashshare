@@ -39,6 +39,15 @@ jobs:
           mkdir -p ~/.gradle
           echo "allprojects { afterEvaluate { project -> if (project.hasProperty('android')) { project.android { compileSdkVersion 36 } } } }" > ~/.gradle/init.gradle
 
+      - name: Fix Gradle Wrapper Line Endings & Permissions
+        run: |
+          for f in gradlew android/gradlew gradle/wrapper/gradle-wrapper.sh; do
+            if [ -f "$f" ]; then
+              sed -i 's/\r$//' "$f"
+              chmod +x "$f"
+            fi
+          done
+
       - name: Build Release APK
         run: flutter build apk --release --no-tree-shake-icons
 

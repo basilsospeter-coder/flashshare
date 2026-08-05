@@ -1,0 +1,3 @@
+gradlew text eol=lf
+android/gradlew text eol=lf
+gradle/wrapper/* text eol=lf
