@@ -5,6 +5,7 @@ on:
     branches: [main, master]
   pull_request:
     branches: [main, master]
+  workflow_dispatch:
 
 jobs:
   build:
@@ -12,10 +13,10 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.2.2
 
       - name: Set up Java JDK
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: "17"
           distribution: "temurin"
@@ -30,18 +31,8 @@ jobs:
           mkdir -p assets/icons
           mkdir -p assets/images
 
-      - name: Recreate Android Project Wrapper
-        run: |
-          rm -rf android
-          flutter create . --platforms=android --org=com.flashshare
-
       - name: Get Dependencies
         run: flutter pub get
-
-      - name: Add Camera Permissions to Manifest
-        run: |
-          sed -i '/<application/i \    <uses-permission android:name="android.permission.CAMERA"/>' android/app/src/main/AndroidManifest.xml
-          sed -i '/<application/i \    <uses-feature android:name="android.hardware.camera"/>' android/app/src/main/AndroidManifest.xml
 
       - name: Force compileSdk 36 Globally
         run: |
