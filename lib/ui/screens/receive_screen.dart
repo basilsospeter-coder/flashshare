@@ -258,10 +258,11 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
               }
             },
             errorBuilder: (context, error, child) {
-              // Extract detailed exception information
-              final String errorCode = error.errorCode.name;
-              final String errorMessage = error.message ?? "No detailed error message string provided";
-              final Object? errorDetails = error.errorDetails;
+              // Extract detailed exception information safely without non-existent getters
+              final dynamic ex = error;
+              final String errorCode = ex.errorCode?.name ?? 'unknown';
+              final String errorMessage = ex.errorDetails?.toString() ?? ex.toString();
+              final Object? errorDetails = ex.errorDetails;
 
               debugPrint("================ [MOBILE SCANNER CRASH] ================");
               debugPrint("Error Code: $errorCode");
