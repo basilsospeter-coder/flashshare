@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -23,8 +22,9 @@ class _SendScreenState extends State<SendScreen> {
   int _currentFrameIndex = 0;
   Timer? _transmissionTimer;
 
-  static const int _chunkSize = 180;
-  static const int _frameIntervalMs = 220;
+  // SPEED ENGINE: 700 bytes chunk size + 100ms update rate (~10 FPS)
+  static const int _chunkSize = 700;
+  static const int _frameIntervalMs = 100;
 
   @override
   void initState() {
@@ -34,20 +34,26 @@ class _SendScreenState extends State<SendScreen> {
   }
 
   void _prepareFrames() {
-    final String base64Data = base64Encode(widget.fileBytes);
-    final List<String> rawChunks = [];
+    final StringBuffer hexBuffer = StringBuffer();
+    for (int b in widget.fileBytes) {
+      hexBuffer.write(b.toRadixString(16).padLeft(2, '0'));
+    }
+    final String hexData = hexBuffer.toString();
 
-    for (int i = 0; i < base64Data.length; i += _chunkSize) {
-      int end = (i + _chunkSize < base64Data.length)
-          ? i + _chunkSize
-          : base64Data.length;
-      rawChunks.add(base64Data.substring(i, end));
+    final List<String> rawChunks = [];
+    final int hexChunkSize = _chunkSize * 2;
+
+    for (int i = 0; i < hexData.length; i += hexChunkSize) {
+      int end = (i + hexChunkSize < hexData.length)
+          ? i + hexChunkSize
+          : hexData.length;
+      rawChunks.add(hexData.substring(i, end));
     }
 
     final int totalFrames = rawChunks.length;
 
     _qrFrames = List.generate(totalFrames, (index) {
-      return '$index/$totalFrames|${rawChunks[index]}';
+      return '${widget.fileName}|$index/$totalFrames|${rawChunks[index]}';
     });
   }
 
@@ -99,10 +105,10 @@ class _SendScreenState extends State<SendScreen> {
               'Frame ${_currentFrameIndex + 1} of ${_qrFrames.length}',
               style: const TextStyle(color: Colors.grey),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
             Center(
               child: Container(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(16),
@@ -110,19 +116,19 @@ class _SendScreenState extends State<SendScreen> {
                 child: QrImageView(
                   data: _qrFrames[_currentFrameIndex],
                   version: QrVersions.auto,
-                  size: 280.0,
+                  size: 300.0,
                   errorCorrectionLevel: QrErrorCorrectLevel.L,
                 ),
               ),
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 24),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 32.0),
               child: Column(
                 children: [
                   LinearProgressIndicator(value: progress),
                   const SizedBox(height: 8),
-                  Text('${(progress * 100).toStringAsFixed(0)}% Looping Stream'),
+                  Text('${(progress * 100).toStringAsFixed(0)}% Streaming'),
                 ],
               ),
             ),

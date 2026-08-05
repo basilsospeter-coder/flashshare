@@ -1,7 +1,10 @@
-import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:gal/gal.dart';
 
 class ReceiveScreen extends StatefulWidget {
   const ReceiveScreen({Key? key}) : super(key: key);
@@ -13,53 +16,99 @@ class ReceiveScreen extends StatefulWidget {
 class _ReceiveScreenState extends State<ReceiveScreen> {
   final Map<int, String> _receivedChunks = {};
   int _totalExpectedFrames = 0;
+  String _fileName = 'received_file';
   bool _isComplete = false;
+  String _savedPath = '';
 
   void _handleBarcode(String rawValue) {
     if (_isComplete) return;
 
     try {
       final parts = rawValue.split('|');
-      if (parts.length != 2) return;
+      if (parts.length != 3) return;
 
-      final headerParts = parts[0].split('/');
+      final fileName = parts[0];
+      final headerParts = parts[1].split('/');
       final frameIndex = int.parse(headerParts[0]);
       final totalFrames = int.parse(headerParts[1]);
 
       if (_totalExpectedFrames == 0) {
         setState(() {
+          _fileName = fileName;
           _totalExpectedFrames = totalFrames;
         });
       }
 
       if (!_receivedChunks.containsKey(frameIndex)) {
         setState(() {
-          _receivedChunks[frameIndex] = parts[1];
+          _receivedChunks[frameIndex] = parts[2];
         });
 
         if (_receivedChunks.length == _totalExpectedFrames) {
-          _assembleFile();
+          _saveFileToStorage();
         }
       }
     } catch (e) {
-      // Ignore unreadable frames during focus shifts
+      // Ignore corrupted frames during camera movement
     }
   }
 
-  void _assembleFile() {
+  Future<void> _saveFileToStorage() async {
     _isComplete = true;
 
-    final StringBuffer fullBase64 = StringBuffer();
+    // Request permissions
+    await Permission.storage.request();
+
+    final StringBuffer fullHex = StringBuffer();
     for (int i = 0; i < _totalExpectedFrames; i++) {
-      fullBase64.write(_receivedChunks[i]);
+      fullHex.write(_receivedChunks[i]);
     }
 
-    final Uint8List decodedBytes = base64Decode(fullBase64.toString());
+    final String hexStr = fullHex.toString();
+    final List<int> bytes = [];
+    for (int i = 0; i < hexStr.length; i += 2) {
+      bytes.add(int.parse(hexStr.substring(i, i + 2), radix: 16));
+    }
+    final Uint8List fileBytes = Uint8List.fromList(bytes);
 
+    // Write to Downloads directory
+    Directory? storageDir;
+    if (Platform.isAndroid) {
+      storageDir = Directory('/storage/emulated/0/Download');
+      if (!await storageDir.exists()) {
+        storageDir = await getExternalStorageDirectory();
+      }
+    } else {
+      storageDir = await getApplicationDocumentsDirectory();
+    }
+
+    final File file = File('${storageDir!.path}/$_fileName');
+    await file.writeAsBytes(fileBytes);
+
+    // Register media files so they show up directly in Gallery
+    final String extension = _fileName.split('.').last.toLowerCase();
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'mp4', 'mov', 'mkv'].contains(extension)) {
+      try {
+        if (['mp4', 'mov', 'mkv'].contains(extension)) {
+          await Gal.putVideo(file.path);
+        } else {
+          await Gal.putImage(file.path);
+        }
+      } catch (e) {
+        // Fallback gracefully if indexing fails
+      }
+    }
+
+    setState(() {
+      _savedPath = file.path;
+    });
+
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('File Transfer Complete! (${decodedBytes.length} bytes)'),
+        content: Text('Saved: ${file.path}'),
         backgroundColor: Colors.green,
+        duration: const Duration(seconds: 5),
       ),
     );
   }
@@ -103,7 +152,7 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
                 children: [
                   Text(
                     _isComplete
-                        ? 'Transfer Complete!'
+                        ? 'Saved to Downloads & Gallery!'
                         : 'Captured: ${_receivedChunks.length} / $_totalExpectedFrames frames',
                     style: const TextStyle(
                       fontSize: 16,
@@ -117,6 +166,14 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text('${(progress * 100).toStringAsFixed(0)}% Captured'),
+                  if (_savedPath.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      'Path: $_savedPath',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: 11, color: Colors.grey),
+                    ),
+                  ],
                 ],
               ),
             ),

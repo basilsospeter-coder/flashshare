@@ -103,7 +103,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 40),
 
-              // SEND CARD
+              // SEND BUTTON
               Card(
                 elevation: 2,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -121,7 +121,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 16),
 
-              // RECEIVE CARD
+              // RECEIVE BUTTON
               Card(
                 elevation: 2,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
