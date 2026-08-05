@@ -259,7 +259,7 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
             ),
           if (_isSaving)
             Container(
-              color: Colors.black70,
+              color: Colors.black.withOpacity(0.7),
               child: const Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
