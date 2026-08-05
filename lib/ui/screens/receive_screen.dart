@@ -3,14 +3,14 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
-class ReceiverScreen extends StatefulWidget {
-  const ReceiverScreen({Key? key}) : super(key: key);
+class ReceiveScreen extends StatefulWidget {
+  const ReceiveScreen({Key? key}) : super(key: key);
 
   @override
-  State<ReceiverScreen> createState() => _ReceiverScreenState();
+  State<ReceiveScreen> createState() => _ReceiveScreenState();
 }
 
-class _ReceiverScreenState extends State<ReceiverScreen> {
+class _ReceiveScreenState extends State<ReceiveScreen> {
   final Map<int, String> _receivedChunks = {};
   int _totalExpectedFrames = 0;
   bool _isComplete = false;

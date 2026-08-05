@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
-import 'sender_screen.dart';
-import 'receiver_screen.dart';
+
+import 'send_screen.dart';
+import 'receive_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -23,7 +24,7 @@ class _HomeScreenState extends State<HomeScreen> {
       if (!mounted) return;
       Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (context) => SenderScreen(
+          builder: (context) => SendScreen(
             fileBytes: file.bytes!,
             fileName: file.name,
           ),
@@ -102,7 +103,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 40),
 
-              // SEND BUTTON
+              // SEND CARD
               Card(
                 elevation: 2,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -120,7 +121,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 16),
 
-              // RECEIVE BUTTON
+              // RECEIVE CARD
               Card(
                 elevation: 2,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -136,7 +137,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   onTap: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (context) => const ReceiverScreen(),
+                        builder: (context) => const ReceiveScreen(),
                       ),
                     );
                   },

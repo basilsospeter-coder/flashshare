@@ -4,21 +4,21 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
-class SenderScreen extends StatefulWidget {
+class SendScreen extends StatefulWidget {
   final Uint8List fileBytes;
   final String fileName;
 
-  const SenderScreen({
+  const SendScreen({
     Key? key,
     required this.fileBytes,
     required this.fileName,
   }) : super(key: key);
 
   @override
-  State<SenderScreen> createState() => _SenderScreenState();
+  State<SendScreen> createState() => _SendScreenState();
 }
 
-class _SenderScreenState extends State<SenderScreen> {
+class _SendScreenState extends State<SendScreen> {
   List<String> _qrFrames = [];
   int _currentFrameIndex = 0;
   Timer? _transmissionTimer;
