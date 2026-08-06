@@ -58,9 +58,6 @@ jobs:
           mkdir -p assets/icons
           mkdir -p assets/images
 
-      - name: Get Dependencies
-        run: flutter pub get
-
       - name: Force compileSdk 36 Globally
         run: |
           mkdir -p ~/.gradle
