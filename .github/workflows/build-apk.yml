@@ -37,6 +37,12 @@ jobs:
           echo "FLUTTER_ROOT=$FLUTTER_ROOT" >> $GITHUB_ENV
           echo "Successfully set FLUTTER_ROOT=$FLUTTER_ROOT"
 
+      - name: Create android/local.properties
+        run: |
+          mkdir -p android
+          echo "flutter.sdk=${FLUTTER_ROOT}" > android/local.properties
+          echo "sdk.dir=${ANDROID_HOME:-$HOME/Android/Sdk}" >> android/local.properties
+
       - name: Generate Missing Gradle Wrapper
         run: |
           cd android
@@ -64,7 +70,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: flashshare-build-folder
-          path: build/**
+          path: build/
+          if-no-files-found: ignore
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
