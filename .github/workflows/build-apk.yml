@@ -43,11 +43,15 @@ jobs:
           echo "flutter.sdk=${FLUTTER_ROOT}" > android/local.properties
           echo "sdk.dir=${ANDROID_HOME:-$HOME/Android/Sdk}" >> android/local.properties
 
-      - name: Generate Missing Gradle Wrapper
+      - name: Ensure Gradle Wrapper
         run: |
-          cd android
-          gradle wrapper --gradle-version 8.3
-          chmod +x gradlew
+          if [ ! -f android/gradlew ]; then
+            cd android
+            gradle wrapper --gradle-version 8.3
+            chmod +x gradlew
+          else
+            echo "Android gradlew already present"
+          fi
 
       - name: Create Missing Asset Folders
         run: |
@@ -62,16 +66,8 @@ jobs:
           mkdir -p ~/.gradle
           echo "allprojects { afterEvaluate { project -> if (project.hasProperty('android')) { project.android { compileSdkVersion 36 } } } }" > ~/.gradle/init.gradle
 
-      - name: Build Release APK (Verbose)
+      - name: Build Release APK
         run: flutter build apk --release --no-tree-shake-icons -v
-
-      - name: Upload Full Build Folder for Debugging
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: flashshare-build-folder
-          path: build/
-          if-no-files-found: ignore
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
