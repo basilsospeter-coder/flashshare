@@ -26,6 +26,17 @@ jobs:
         with:
           channel: "stable"
 
+      - name: Export FLUTTER_ROOT
+        run: |
+          FLUTTER_BIN="$(which flutter)"
+          if [ -z "$FLUTTER_BIN" ]; then
+            echo "flutter not found on PATH" >&2
+            exit 1
+          fi
+          FLUTTER_ROOT="$(dirname "$(dirname "$FLUTTER_BIN")")"
+          echo "FLUTTER_ROOT=$FLUTTER_ROOT" >> $GITHUB_ENV
+          echo "Successfully set FLUTTER_ROOT=$FLUTTER_ROOT"
+
       - name: Generate Missing Gradle Wrapper
         run: |
           cd android
